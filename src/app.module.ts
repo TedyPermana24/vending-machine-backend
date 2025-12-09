@@ -8,6 +8,9 @@ import { ExpertSystemModule } from './expert-system/expert-system.module';
 import { Product } from './products/entities/product.entity';
 import { TransactionModule } from './transactions/transaction.module';
 import { Transaction } from './transactions/entities/transaction.entity';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { User } from './users/entities/user.entity';
 
 @Module({
   imports: [
@@ -19,12 +22,14 @@ import { Transaction } from './transactions/entities/transaction.entity';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'vending_machine',
-      entities: [Product, Transaction],
+      entities: [Product, Transaction, User],
       synchronize: true,
     }),
     ProductsModule,
     ExpertSystemModule,
     TransactionModule,
+    AuthModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

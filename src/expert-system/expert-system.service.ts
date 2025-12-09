@@ -12,6 +12,7 @@ import { Product } from '../products/entities/product.entity';
 interface UserSession {
   collectedSymptoms: string[];
   currentQuestionIndex: number;
+  gender?: 'male' | 'female';
 }
 
 export interface Rule {
@@ -148,67 +149,100 @@ export class ExpertSystemService {
     },
   ];
 
-  // Static Questions - Tidak perlu database
-  private readonly SYMPTOM_QUESTIONS: SymptomQuestion[] = [
+  // Static Questions - Pertanyaan berbeda untuk pria dan wanita
+  private readonly SYMPTOM_QUESTIONS_FEMALE: SymptomQuestion[] = [
     {
-      id: 'Q1',
+      id: 'QF1',
       text: 'Apakah Anda mengalami nyeri haid?',
       symptomCode: 'G1',
       symptomName: 'Nyeri Haid',
     },
     {
-      id: 'Q2',
+      id: 'QF2',
       text: 'Apakah Anda mengalami masalah pencernaan (seperti sembelit atau kembung)?',
       symptomCode: 'G2',
       symptomName: 'Gangguan Pencernaan',
     },
     {
-      id: 'Q3',
+      id: 'QF3',
       text: 'Apakah Anda perlu mengontrol kadar gula darah?',
       symptomCode: 'G3',
       symptomName: 'Perlu Kontrol Gula Darah',
     },
     {
-      id: 'Q4',
+      id: 'QF4',
       text: 'Apakah daya tahan tubuh Anda sedang lemah?',
       symptomCode: 'G4',
       symptomName: 'Daya Tahan Tubuh Lemah',
     },
     {
-      id: 'Q5',
+      id: 'QF5',
       text: 'Apakah nafsu makan Anda menurun?',
       symptomCode: 'G5',
       symptomName: 'Nafsu Makan Menurun',
     },
     {
-      id: 'Q6',
+      id: 'QF6',
       text: 'Apakah Anda mengalami batuk atau hidung tersumbat?',
       symptomCode: 'G6',
       symptomName: 'Batuk/Hidung Tersumbat',
     },
     {
-      id: 'Q7',
+      id: 'QF7',
       text: 'Apakah Anda memiliki masalah kesehatan hati (liver)?',
       symptomCode: 'G7',
       symptomName: 'Masalah Liver/Hati',
     },
     {
-      id: 'Q8',
+      id: 'QF8',
       text: 'Apakah Anda butuh perlindungan antioksidan untuk melawan radikal bebas?',
       symptomCode: 'G8',
       symptomName: 'Butuh Antioksidan',
     },
+  ];
+
+  private readonly SYMPTOM_QUESTIONS_MALE: SymptomQuestion[] = [
     {
-      id: 'Q9',
-      text: 'Apakah Anda (pria) merasa stamina menurun?',
+      id: 'QM1',
+      text: 'Apakah Anda merasa stamina menurun?',
       symptomCode: 'G9',
-      symptomName: 'Stamina Menurun (Pria)',
+      symptomName: 'Stamina Menurun',
     },
     {
-      id: 'Q10',
+      id: 'QM2',
       text: 'Apakah Anda mengalami pegal linu atau nyeri otot pinggang?',
       symptomCode: 'G10',
       symptomName: 'Pegal Linu/Nyeri Otot',
+    },
+    {
+      id: 'QM3',
+      text: 'Apakah daya tahan tubuh Anda sedang lemah?',
+      symptomCode: 'G4',
+      symptomName: 'Daya Tahan Tubuh Lemah',
+    },
+    {
+      id: 'QM4',
+      text: 'Apakah nafsu makan Anda menurun?',
+      symptomCode: 'G5',
+      symptomName: 'Nafsu Makan Menurun',
+    },
+    {
+      id: 'QM5',
+      text: 'Apakah Anda mengalami batuk atau hidung tersumbat?',
+      symptomCode: 'G6',
+      symptomName: 'Batuk/Hidung Tersumbat',
+    },
+    {
+      id: 'QM6',
+      text: 'Apakah Anda memiliki masalah kesehatan hati (liver)?',
+      symptomCode: 'G7',
+      symptomName: 'Masalah Liver/Hati',
+    },
+    {
+      id: 'QM7',
+      text: 'Apakah Anda butuh perlindungan antioksidan untuk melawan radikal bebas?',
+      symptomCode: 'G8',
+      symptomName: 'Butuh Antioksidan',
     },
   ];
 
@@ -228,9 +262,13 @@ export class ExpertSystemService {
   }
 
   async initialize(): Promise<InitializeResponse> {
+    const totalQuestions = Math.max(
+      this.SYMPTOM_QUESTIONS_FEMALE.length,
+      this.SYMPTOM_QUESTIONS_MALE.length
+    );
     return { 
       message: 'Expert system ready. Questions and symptoms are loaded in memory.',
-      totalQuestions: this.SYMPTOM_QUESTIONS.length,
+      totalQuestions,
       totalRules: this.RULES.length,
     };
   }
@@ -239,20 +277,18 @@ export class ExpertSystemService {
     const sessionId = this.generateSessionId();
     this.sessions.set(sessionId, {
       collectedSymptoms: [],
-      currentQuestionIndex: 0,
+      currentQuestionIndex: -1, // -1 menandakan belum pilih gender
     });
-
-    const firstQuestion = this.SYMPTOM_QUESTIONS[0];
 
     return {
       isComplete: false,
       sessionId,
       nextQuestion: {
-        id: firstQuestion.id,
-        text: firstQuestion.text,
+        id: 'Q_GENDER',
+        text: 'Apa jenis kelamin Anda?',
         options: [
-          { id: `${firstQuestion.id}_yes`, text: 'Ya' },
-          { id: `${firstQuestion.id}_no`, text: 'Tidak' },
+          { id: 'Q_GENDER_male', text: 'Pria' },
+          { id: 'Q_GENDER_female', text: 'Wanita' },
         ],
       },
     };
@@ -272,7 +308,37 @@ export class ExpertSystemService {
       throw new NotFoundException('Session not found. Please start over.');
     }
 
-    const currentQuestion = this.SYMPTOM_QUESTIONS.find(q => q.id === questionId);
+    // Handle gender selection
+    if (questionId === 'Q_GENDER') {
+      session.gender = selectedOptionId === 'Q_GENDER_male' ? 'male' : 'female';
+      session.currentQuestionIndex = 0;
+
+      const questions = session.gender === 'female' 
+        ? this.SYMPTOM_QUESTIONS_FEMALE 
+        : this.SYMPTOM_QUESTIONS_MALE;
+      
+      const firstQuestion = questions[0];
+
+      return {
+        isComplete: false,
+        sessionId,
+        nextQuestion: {
+          id: firstQuestion.id,
+          text: firstQuestion.text,
+          options: [
+            { id: `${firstQuestion.id}_yes`, text: 'Ya' },
+            { id: `${firstQuestion.id}_no`, text: 'Tidak' },
+          ],
+        },
+      };
+    }
+
+    // Get the appropriate question set based on gender
+    const questions = session.gender === 'female' 
+      ? this.SYMPTOM_QUESTIONS_FEMALE 
+      : this.SYMPTOM_QUESTIONS_MALE;
+
+    const currentQuestion = questions.find(q => q.id === questionId);
     if (!currentQuestion) {
       throw new NotFoundException('Question not found');
     }
@@ -283,8 +349,8 @@ export class ExpertSystemService {
 
     session.currentQuestionIndex++;
 
-    if (session.currentQuestionIndex < this.SYMPTOM_QUESTIONS.length) {
-      const nextQ = this.SYMPTOM_QUESTIONS[session.currentQuestionIndex];
+    if (session.currentQuestionIndex < questions.length) {
+      const nextQ = questions[session.currentQuestionIndex];
 
       return {
         isComplete: false,
@@ -352,36 +418,35 @@ export class ExpertSystemService {
   ): Promise<string> {
     try {
       const prompt = `
-Anda adalah asisten kesehatan herbal yang ramah dan informatif.
+Anda adalah asisten kesehatan herbal yang profesional dan to-the-point.
 
-INFORMASI PRODUK:
-- Nama: ${product.nama}
-- Deskripsi: ${product.deskripsi}
-- Manfaat: ${product.manfaat}
-- Harga: Rp ${product.harga.toLocaleString('id-ID')}
+PRODUK: ${product.nama}
+GEJALA: ${symptoms.join(', ')}
+DIAGNOSIS: ${diagnosis}
 
-KONDISI PENGGUNA:
-- Gejala yang dialami: ${symptoms.join(', ')}
-- Diagnosis: ${diagnosis}
+TUGAS: Buat penjelasan SINGKAT (maksimal 150 kata) dengan format:
 
-TUGAS ANDA:
-Buatlah penjelasan yang ramah, personal, dan informatif dengan struktur berikut:
+1. Satu kalimat kenapa produk ini cocok
+2. 2-3 manfaat utama (bullet points)
+3. 2-3 tips praktis (bullet points)
 
-1. Sapaan empati tentang kondisi mereka
-2. Penjelasan singkat mengapa produk ini cocok untuk gejala mereka
-3. Manfaat utama produk untuk mengatasi keluhan
-4. Tips/saran praktis untuk mempercepat pemulihan (3-5 poin)
-5. Penutup yang encouraging
+ATURAN KETAT:
+- Langsung to the point, NO sapaan bertele-tele
+- NO emoji berlebihan (max 2)
+- NO kata "semoga lekas membaik" atau sejenisnya
+- Fokus pada fakta dan manfaat
+- Bahasa profesional tapi tetap ramah
 
-ATURAN:
-- Gunakan bahasa Indonesia yang natural dan ramah
-- Maksimal 250 kata
-- Fokus pada manfaat produk sesuai database
-- Berikan tips kesehatan yang umum dan aman
-- Jangan buat klaim medis yang berlebihan
-- Gunakan paragraf yang mudah dibaca
+Contoh format yang benar:
+"${product.nama} cocok untuk mengatasi ${diagnosis.toLowerCase()} yang Anda alami.
 
-Berikan penjelasan sekarang:
+Manfaat utama:
+• [manfaat 1]
+• [manfaat 2]
+
+Tips penggunaan:
+• Konsumsi 2x sehari
+• Minum air putih cukup"
 `;
 
       const result = await this.model.generateContent(prompt);
@@ -391,31 +456,23 @@ Berikan penjelasan sekarang:
       return text.trim();
     } catch (error) {
       console.error('Error generating AI explanation:', error);
-      // Fallback jika AI gagal
-      return this.generateFallbackExplanation(symptoms, diagnosis, product);
+      return this.generateFallbackExplanation(symptoms, product);
     }
   }
 
   private generateFallbackExplanation(
     symptoms: string[],
-    diagnosis: string,
     product: Product,
   ): string {
-    return `Berdasarkan gejala yang Anda alami (${symptoms.join(', ')}), kami mendiagnosis kondisi Anda sebagai ${diagnosis}.
+    return `${product.nama} cocok untuk mengatasi keluhan yang Anda alami.
 
-Kami merekomendasikan ${product.nama} karena produk ini memiliki manfaat:
-${product.manfaat}
+Manfaat:
+• ${product.manfaat.split(',')[0]?.trim() || product.manfaat}
 
-${product.deskripsi}
-
-Tips untuk mempercepat pemulihan:
-• Konsumsi produk secara teratur sesuai anjuran
-• Istirahat yang cukup
-• Minum air putih minimal 8 gelas per hari
-• Konsumsi makanan bergizi seimbang
-• Jika gejala berlanjut lebih dari 3 hari, konsultasikan dengan dokter
-
-Semoga lekas membaik! 🌿`;
+Tips:
+• Konsumsi secara teratur
+• Istirahat cukup
+• Minum air putih minimal 8 gelas/hari`;
   }
 
   private forwardChaining(symptoms: string[]): {
@@ -426,6 +483,8 @@ Semoga lekas membaik! 🌿`;
     if (symptoms.length === 0) {
       return null;
     }
+
+    const allQuestions = [...this.SYMPTOM_QUESTIONS_FEMALE, ...this.SYMPTOM_QUESTIONS_MALE];
 
     for (const rule of this.RULES.filter((r) => r.diagnosis)) {
       const isMatch = rule.condition.some((cond) => symptoms.includes(cond));
@@ -439,7 +498,7 @@ Semoga lekas membaik! 🌿`;
             productId: productRule.productId,
             diagnosisName: rule.diagnosisName,
             symptoms: symptoms.map(code => 
-              this.SYMPTOM_QUESTIONS.find(q => q.symptomCode === code)?.symptomName || code
+              allQuestions.find(q => q.symptomCode === code)?.symptomName || code
             ),
           };
         }
@@ -454,7 +513,7 @@ Semoga lekas membaik! 🌿`;
   }
 
   getAllQuestions(): SymptomQuestion[] {
-    return this.SYMPTOM_QUESTIONS;
+    return [...this.SYMPTOM_QUESTIONS_FEMALE, ...this.SYMPTOM_QUESTIONS_MALE];
   }
 
   getAllRules(): Rule[] {

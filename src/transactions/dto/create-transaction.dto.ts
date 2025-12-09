@@ -9,9 +9,6 @@ export class CreateTransactionDto {
   quantity: number;
 
   @IsString()
-  customerName: string;
-
-  @IsString()
   @IsOptional()
   platform?: string;
 }

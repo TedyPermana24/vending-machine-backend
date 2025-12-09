@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import * as midtransClient from 'midtrans-client';
 import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { Product } from '../products/entities/product.entity';
+import { User } from '../users/entities/user.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { MidtransNotificationDto } from './dto/midtrans-notification.dto';
 import * as crypto from 'crypto';
@@ -19,6 +20,8 @@ export class TransactionService {
     private transactionRepository: Repository<Transaction>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     private configService: ConfigService,
   ) {
     this.snap = new midtransClient.Snap({
@@ -34,7 +37,7 @@ export class TransactionService {
     });
   }
 
-  async createTransaction(createTransactionDto: CreateTransactionDto) {
+  async createTransaction(createTransactionDto: CreateTransactionDto, userId: number) {
     // Get product with better error handling
     const product = await this.productRepository.findOne({
       where: { id: createTransactionDto.productId },
@@ -56,6 +59,12 @@ export class TransactionService {
     // Check stock
     if (product.stok < createTransactionDto.quantity) {
       throw new BadRequestException(`Insufficient stock. Available: ${product.stok}, Requested: ${createTransactionDto.quantity}`);
+    }
+
+    // Get user
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
     // Calculate amounts
@@ -85,7 +94,9 @@ export class TransactionService {
         },
       ],
       customer_details: {
-        first_name: createTransactionDto.customerName.trim(),
+        first_name: user.name,
+        email: user.email,
+        phone: user.phone,
       },
       enabled_payments: [
         'qris',
@@ -119,12 +130,12 @@ export class TransactionService {
       const transaction = this.transactionRepository.create({
         orderId,
         productId: product.id,
+        userId: user.id,
         quantity: createTransactionDto.quantity,
         grossAmount,
         status: TransactionStatus.PENDING,
         snapToken: snapTransaction.token,
         snapUrl: snapTransaction.redirect_url,
-        customerName: createTransactionDto.customerName,
         platform: createTransactionDto.platform || 'web',
         midtransResponse: JSON.stringify(snapTransaction),
       });
@@ -268,7 +279,7 @@ export class TransactionService {
 
       const transaction = await this.transactionRepository.findOne({
         where: { orderId },
-        relations: ['product'],
+        relations: ['product', 'user'],
       });
 
       if (!transaction) {
@@ -318,9 +329,11 @@ export class TransactionService {
         grossAmount: transaction.grossAmount,
         paidAt: transaction.paidAt,
         product: transaction.product,
-        customer: {
-          name: transaction.customerName,
-        },
+        customer: transaction.user ? {
+          name: transaction.user.name,
+          email: transaction.user.email,
+          phone: transaction.user.phone,
+        } : null,
         midtransStatus: statusResponse,
       };
     } catch (error) {
@@ -331,7 +344,7 @@ export class TransactionService {
 
   async getAllTransactions() {
     return await this.transactionRepository.find({
-      relations: ['product'],
+      relations: ['product', 'user'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -339,7 +352,7 @@ export class TransactionService {
   async getTransactionByOrderId(orderId: string) {
     const transaction = await this.transactionRepository.findOne({
       where: { orderId },
-      relations: ['product'],
+      relations: ['product', 'user'],
     });
 
     if (!transaction) {
@@ -347,6 +360,32 @@ export class TransactionService {
     }
 
     return transaction;
+  }
+
+  async getUserTransactionHistory(userId: number) {
+    const transactions = await this.transactionRepository.find({
+      where: { userId },
+      relations: ['product'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return transactions.map(transaction => ({
+      id: transaction.id,
+      orderId: transaction.orderId,
+      product: {
+        id: transaction.product.id,
+        nama: transaction.product.nama,
+        harga: transaction.product.harga,
+        gambar: transaction.product.gambar,
+      },
+      quantity: transaction.quantity,
+      grossAmount: transaction.grossAmount,
+      status: transaction.status,
+      paymentType: transaction.paymentType,
+      platform: transaction.platform,
+      createdAt: transaction.createdAt,
+      paidAt: transaction.paidAt,
+    }));
   }
 
   private verifySignature(notification: MidtransNotificationDto): boolean {

@@ -1,15 +1,21 @@
-import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus, UseGuards, Request, UnauthorizedException } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { MidtransNotificationDto } from './dto/midtrans-notification.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('payments')
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 
   @Post('create')
-  async createTransaction(@Body() createTransactionDto: CreateTransactionDto) {
-    return await this.transactionService.createTransaction(createTransactionDto);
+  @UseGuards(JwtAuthGuard)
+  async createTransaction(
+    @Body() createTransactionDto: CreateTransactionDto,
+    @Request() req: any,
+  ) {
+    const userId = req.user.sub;
+    return await this.transactionService.createTransaction(createTransactionDto, userId);
   }
 
   @Post('notification')
@@ -26,6 +32,13 @@ export class TransactionController {
   @Get('transactions')
   async getAllTransactions() {
     return await this.transactionService.getAllTransactions();
+  }
+
+  @Get('my-history')
+  @UseGuards(JwtAuthGuard)
+  async getMyTransactionHistory(@Request() req: any) {
+    const userId = req.user.sub;
+    return await this.transactionService.getUserTransactionHistory(userId);
   }
 
   @Get('transaction/:orderId')

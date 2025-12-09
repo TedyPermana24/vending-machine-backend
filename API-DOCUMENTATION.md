@@ -5,6 +5,7 @@ Base URL: `http://localhost:3000`
 ## Table of Contents
 
 - [Authentication](#authentication)
+- [Auth API](#auth-api)
 - [Transactions API](#transactions-api)
 - [Expert System API](#expert-system-api)
 - [Products API](#products-api)
@@ -14,7 +15,121 @@ Base URL: `http://localhost:3000`
 
 ## Authentication
 
-Saat ini API belum menggunakan authentication. Untuk production, disarankan menambahkan JWT authentication.
+API menggunakan JWT (JSON Web Token) untuk authentication. Token dikirim melalui header `Authorization: Bearer <token>`.
+
+### Required Authentication
+
+Endpoint transaksi (`/payments/create`) **memerlukan authentication**. Pengguna harus login terlebih dahulu untuk membuat transaksi.
+
+---
+
+## Auth API
+
+Endpoint untuk registrasi dan login pengguna.
+
+### Base Path: `/auth`
+
+---
+
+### 1. Register
+
+Mendaftarkan pengguna baru.
+
+**Endpoint:** `POST /auth/register`
+
+**Request Body:**
+
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "081234567890",
+  "password": "password123"
+}
+```
+
+**Request Fields:**
+
+| Field    | Type   | Required | Description                   |
+| -------- | ------ | -------- | ----------------------------- |
+| name     | string | Yes      | Nama lengkap pengguna         |
+| email    | string | Yes      | Email pengguna (valid email)  |
+| phone    | string | Yes      | No. HP pengguna               |
+| password | string | Yes      | Password (minimal 6 karakter) |
+
+**Success Response (201 Created):**
+
+```json
+{
+  "message": "User registered successfully",
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "081234567890"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Response (409 Conflict):**
+
+```json
+{
+  "statusCode": 409,
+  "message": "Email already registered",
+  "error": "Conflict"
+}
+```
+
+---
+
+### 2. Login
+
+Login untuk pengguna yang sudah terdaftar.
+
+**Endpoint:** `POST /auth/login`
+
+**Request Body:**
+
+```json
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
+```
+
+**Request Fields:**
+
+| Field    | Type   | Required | Description       |
+| -------- | ------ | -------- | ----------------- |
+| email    | string | Yes      | Email pengguna    |
+| password | string | Yes      | Password pengguna |
+
+**Success Response (200 OK):**
+
+```json
+{
+  "message": "Login successful",
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "081234567890"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Response (401 Unauthorized):**
+
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid credentials",
+  "error": "Unauthorized"
+}
+```
 
 ---
 
@@ -28,9 +143,17 @@ Endpoint untuk mengelola transaksi pembayaran menggunakan Midtrans.
 
 ### 1. Create Transaction
 
-Membuat transaksi pembayaran baru.
+Membuat transaksi pembayaran baru. **Memerlukan authentication** - pengguna harus login terlebih dahulu.
 
 **Endpoint:** `POST /payments/create`
+
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <token>
+```
 
 **Request Body:**
 
@@ -38,23 +161,19 @@ Membuat transaksi pembayaran baru.
 {
   "productId": 1,
   "quantity": 2,
-  "customerName": "John Doe",
-  "customerEmail": "john@example.com",
-  "customerPhone": "081234567890",
   "platform": "web"
 }
 ```
 
 **Request Fields:**
 
-| Field         | Type   | Required | Description                    |
-| ------------- | ------ | -------- | ------------------------------ |
-| productId     | number | Yes      | ID produk yang dibeli          |
-| quantity      | number | Yes      | Jumlah produk (min: 1)         |
-| customerName  | string | Yes      | Nama pembeli                   |
-| customerEmail | string | Yes      | Email pembeli (valid email)    |
-| customerPhone | string | Yes      | No. HP pembeli                 |
-| platform      | string | No       | Platform ('web' atau 'mobile') |
+| Field     | Type   | Required | Description                    |
+| --------- | ------ | -------- | ------------------------------ |
+| productId | number | Yes      | ID produk yang dibeli          |
+| quantity  | number | Yes      | Jumlah produk (min: 1)         |
+| platform  | string | No       | Platform ('web' atau 'mobile') |
+
+**Note:** Informasi customer (name, email, phone) diambil dari data user yang sedang login.
 
 **Success Response (200 OK):**
 
@@ -82,6 +201,16 @@ Membuat transaksi pembayaran baru.
   "statusCode": 400,
   "message": "Product with ID 1 not found",
   "error": "Bad Request"
+}
+```
+
+**Error Response (401 Unauthorized):**
+
+```json
+{
+  "statusCode": 401,
+  "message": "No token provided",
+  "error": "Unauthorized"
 }
 ```
 
@@ -159,7 +288,64 @@ Mengecek status transaksi dari Midtrans.
 
 ---
 
-### 3. Get All Transactions
+### 3. Get My Transaction History
+
+Mendapatkan riwayat transaksi user yang sedang login.
+
+**Endpoint:** `GET /payments/my-history`
+
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <token>
+```
+
+**Success Response (200 OK):**
+
+```json
+[
+  {
+    "id": 1,
+    "orderId": "ORDER-1762344412984-lb5qdwbj5",
+    "product": {
+      "id": 1,
+      "nama": "Jamu Kunyit Asam",
+      "harga": 25000,
+      "gambar": "kunyit-asam.jpg"
+    },
+    "quantity": 2,
+    "grossAmount": 50000,
+    "status": "success",
+    "paymentType": "qris",
+    "platform": "web",
+    "createdAt": "2025-11-05T12:03:41.000Z",
+    "paidAt": "2025-11-05T12:15:00.000Z"
+  },
+  {
+    "id": 2,
+    "orderId": "ORDER-1762344513124-xyz789abc",
+    "product": {
+      "id": 2,
+      "nama": "Jamu Beras Kencur",
+      "harga": 22000,
+      "gambar": "beras-kencur.jpg"
+    },
+    "quantity": 1,
+    "grossAmount": 22000,
+    "status": "pending",
+    "paymentType": null,
+    "platform": "mobile",
+    "createdAt": "2025-11-06T10:20:15.000Z",
+    "paidAt": null
+  }
+]
+```
+
+---
+
+### 4. Get All Transactions
 
 Mendapatkan semua transaksi (untuk admin).
 
@@ -173,6 +359,7 @@ Mendapatkan semua transaksi (untuk admin).
     "id": 1,
     "orderId": "ORDER-1762344412984-lb5qdwbj5",
     "productId": 1,
+    "userId": 1,
     "quantity": 2,
     "grossAmount": 50000,
     "status": "pending",
@@ -180,9 +367,6 @@ Mendapatkan semua transaksi (untuk admin).
     "snapToken": "66e4fa55-fdac-4ef9-91b5-733b97d1b862",
     "snapUrl": "https://app.sandbox.midtrans.com/snap/v2/vtweb/...",
     "transactionId": "be4f3e44-d6ee-4355-8c8f-d6a0d8b1d4e5",
-    "customerName": "John Doe",
-    "customerEmail": "john@example.com",
-    "customerPhone": "081234567890",
     "platform": "web",
     "createdAt": "2025-11-05T12:03:41.000Z",
     "updatedAt": "2025-11-05T12:03:41.000Z",
@@ -192,6 +376,12 @@ Mendapatkan semua transaksi (untuk admin).
       "nama": "Jamu Kunyit Asam",
       "harga": 25000,
       "gambar": "kunyit-asam.jpg"
+    },
+    "user": {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "phone": "081234567890"
     }
   }
 ]
@@ -199,7 +389,7 @@ Mendapatkan semua transaksi (untuk admin).
 
 ---
 
-### 4. Get Transaction by Order ID
+### 5. Get Transaction by Order ID
 
 Mendapatkan detail transaksi berdasarkan Order ID.
 
@@ -220,14 +410,12 @@ Mendapatkan detail transaksi berdasarkan Order ID.
   "id": 1,
   "orderId": "ORDER-1762344412984-lb5qdwbj5",
   "productId": 1,
+  "userId": 1,
   "quantity": 2,
   "grossAmount": 50000,
   "status": "success",
   "paymentType": "qris",
   "transactionId": "be4f3e44-d6ee-4355-8c8f-d6a0d8b1d4e5",
-  "customerName": "John Doe",
-  "customerEmail": "john@example.com",
-  "customerPhone": "081234567890",
   "platform": "web",
   "paidAt": "2025-11-05T12:15:00.000Z",
   "createdAt": "2025-11-05T12:03:41.000Z",
@@ -236,13 +424,19 @@ Mendapatkan detail transaksi berdasarkan Order ID.
     "nama": "Jamu Kunyit Asam",
     "deskripsi": "Jamu tradisional...",
     "harga": 25000
+  },
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "081234567890"
   }
 }
 ```
 
 ---
 
-### 5. Cancel Transaction
+### 6. Cancel Transaction
 
 Membatalkan transaksi yang masih pending.
 
@@ -277,7 +471,7 @@ Membatalkan transaksi yang masih pending.
 
 ---
 
-### 6. Midtrans Payment Notification (Webhook)
+### 7. Midtrans Payment Notification (Webhook)
 
 Endpoint untuk menerima notifikasi pembayaran dari Midtrans.
 
@@ -882,19 +1076,45 @@ Semua error mengikuti format standar NestJS:
 
 ### Test Flow - Complete User Journey
 
-#### 1. Browse Products
+#### Flow A: With Authentication (Logged In User)
+
+##### 1. Register User
+
+```http
+POST {{baseUrl}}/auth/register
+Body: {
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "081234567890",
+  "password": "password123"
+}
+```
+
+##### 2. Login (or use token from register response)
+
+```http
+POST {{baseUrl}}/auth/login
+Body: {
+  "email": "john@example.com",
+  "password": "password123"
+}
+```
+
+Save the token from the response.
+
+##### 3. Browse Products
 
 ```http
 GET {{baseUrl}}/products
 ```
 
-#### 2. Start Diagnosis
+##### 4. Start Diagnosis
 
 ```http
 GET {{baseUrl}}/expert-system/start
 ```
 
-#### 3. Answer Questions (repeat until isComplete: true)
+##### 5. Answer Questions (repeat until isComplete: true)
 
 ```http
 POST {{baseUrl}}/expert-system/diagnose
@@ -905,10 +1125,13 @@ Body: {
 }
 ```
 
-#### 4. Create Transaction (after getting recommendation)
+##### 6. Create Transaction (with authentication)
 
 ```http
-POST {{baseUrl}}/transactions/create
+POST {{baseUrl}}/payments/create
+Headers: {
+  "Authorization": "Bearer <your_token_here>"
+}
 Body: {
   "productId": 1,
   "quantity": 2,
@@ -919,10 +1142,57 @@ Body: {
 }
 ```
 
-#### 5. Check Payment Status
+##### 7. Check Payment Status
 
 ```http
-GET {{baseUrl}}/transactions/status/ORDER-1762344412984-lb5qdwbj5
+GET {{baseUrl}}/payments/status/ORDER-1762344412984-lb5qdwbj5
+```
+
+---
+
+#### Flow B: Guest Checkout (Without Authentication)
+
+##### 1. Browse Products
+
+```http
+GET {{baseUrl}}/products
+```
+
+##### 2. Start Diagnosis
+
+```http
+GET {{baseUrl}}/expert-system/start
+```
+
+##### 3. Answer Questions (repeat until isComplete: true)
+
+```http
+POST {{baseUrl}}/expert-system/diagnose
+Body: {
+  "questionId": "Q1",
+  "selectedOptionId": "Q1_yes",
+  "sessionId": "session_1762344412984_abc123def"
+}
+```
+
+##### 4. Create Transaction (as guest - no token)
+
+```http
+POST {{baseUrl}}/payments/create
+Body: {
+  "productId": 1,
+  "quantity": 2,
+  "customerName": "John Doe",
+  "customerEmail": "john@example.com",
+  "customerPhone": "081234567890",
+  "platform": "web"
+}
+```
+
+##### 5. Check Payment Status
+
+```http
+GET {{baseUrl}}/payments/status/ORDER-1762344412984-lb5qdwbj5
 ```
 
 ---
@@ -988,6 +1258,18 @@ import { WebView } from 'react-native-webview';
 
 ## Database Schema
 
+### Table: users
+
+| Column    | Type         | Constraints                 |
+| --------- | ------------ | --------------------------- |
+| id        | INT          | PRIMARY KEY, AUTO_INCREMENT |
+| name      | VARCHAR(255) | NOT NULL                    |
+| email     | VARCHAR(255) | UNIQUE, NOT NULL            |
+| phone     | VARCHAR(50)  | NOT NULL                    |
+| password  | VARCHAR(255) | NOT NULL                    |
+| createdAt | DATETIME     | NOT NULL                    |
+| updatedAt | DATETIME     | NOT NULL                    |
+
 ### Table: products
 
 | Column    | Type         | Constraints                 |
@@ -1009,6 +1291,7 @@ import { WebView } from 'react-native-webview';
 | id               | INT          | PRIMARY KEY, AUTO_INCREMENT                            |
 | orderId          | VARCHAR(255) | UNIQUE, NOT NULL                                       |
 | productId        | INT          | FOREIGN KEY → products.id                              |
+| userId           | INT          | FOREIGN KEY → users.id, NULLABLE                       |
 | quantity         | INT          | NOT NULL                                               |
 | grossAmount      | INT          | NOT NULL                                               |
 | status           | ENUM         | 'pending', 'success', 'failed', 'expired', 'cancelled' |
@@ -1038,6 +1321,9 @@ DB_PORT=3306
 DB_USERNAME=root
 DB_PASSWORD=
 DB_DATABASE=vending_machine
+
+# JWT Authentication
+JWT_SECRET=your-jwt-secret-key-change-this-in-production
 
 # Google Gemini API
 GEMINI_API_KEY=your_gemini_api_key

@@ -1,7 +1,7 @@
 export class DiagnoseRequestDto {
   questionId: string;
   selectedOptionId: string;
-  sessionId?: string; // Untuk tracking user session
+  sessionId?: string; 
 }
 
 export class DiagnoseResponseDto {

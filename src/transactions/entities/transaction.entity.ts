@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Product } from '../../products/entities/product.entity';
+import { User } from '../../users/entities/user.entity';
 
 export enum TransactionStatus {
   PENDING = 'pending',
@@ -32,6 +33,13 @@ export class Transaction {
   @JoinColumn({ name: 'productId' })
   product: Product;
 
+  @Column({ nullable: true })
+  userId: number;
+
+  @ManyToOne(() => User, (user) => user.transactions)
+  @JoinColumn({ name: 'userId' })
+  user: User;
+
   @Column()
   quantity: number;
 
@@ -56,9 +64,6 @@ export class Transaction {
 
   @Column({ nullable: true })
   transactionId: string;
-
-  @Column({ nullable: true })
-  customerName: string;
 
   @Column({ nullable: true })
   platform: string; // 'web' or 'mobile'
