@@ -8,6 +8,9 @@ export class CreateTransactionDto {
   @Min(1)
   quantity: number;
 
+  @IsNumber()
+  machineId: number; // Hapus @IsOptional()
+
   @IsString()
   @IsOptional()
   platform?: string;

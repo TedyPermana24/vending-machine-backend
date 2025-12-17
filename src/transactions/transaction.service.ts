@@ -6,6 +6,7 @@ import * as midtransClient from 'midtrans-client';
 import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { Product } from '../products/entities/product.entity';
 import { User } from '../users/entities/user.entity';
+import { Machine } from '../machines/entities/machine.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { MidtransNotificationDto } from './dto/midtrans-notification.dto';
 import * as crypto from 'crypto';
@@ -22,6 +23,8 @@ export class TransactionService {
     private productRepository: Repository<Product>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Machine)
+    private machineRepository: Repository<Machine>,
     private configService: ConfigService,
   ) {
     this.snap = new midtransClient.Snap({
@@ -38,16 +41,18 @@ export class TransactionService {
   }
 
   async createTransaction(createTransactionDto: CreateTransactionDto, userId: number) {
-    // Get product with better error handling
+    const { productId, quantity = 1, machineId, platform = 'web' } = createTransactionDto;
+
+    // Get product
     const product = await this.productRepository.findOne({
-      where: { id: createTransactionDto.productId },
+      where: { id: productId },
     });
 
     if (!product) {
-      throw new NotFoundException(`Product with ID ${createTransactionDto.productId} not found`);
+      throw new NotFoundException(`Product with ID ${productId} not found`);
     }
 
-    // Validate product data
+    // Validate product
     if (!product.nama || product.nama.trim() === '') {
       throw new BadRequestException('Product name is empty');
     }
@@ -57,8 +62,21 @@ export class TransactionService {
     }
 
     // Check stock
-    if (product.stok < createTransactionDto.quantity) {
-      throw new BadRequestException(`Insufficient stock. Available: ${product.stok}, Requested: ${createTransactionDto.quantity}`);
+    if (product.stok < quantity) {
+      throw new BadRequestException(`Insufficient stock. Available: ${product.stok}, Requested: ${quantity}`);
+    }
+
+    // Validate machine (WAJIB)
+    const machine = await this.machineRepository.findOne({
+      where: { id: machineId },
+    });
+
+    if (!machine) {
+      throw new NotFoundException(`Machine with ID ${machineId} not found`);
+    }
+
+    if (machine.status !== 'online') {
+      throw new BadRequestException(`Machine ${machine.name} is not online`);
     }
 
     // Get user
@@ -69,9 +87,8 @@ export class TransactionService {
 
     // Calculate amounts
     const unitPrice = Number(product.harga);
-    const grossAmount = unitPrice * createTransactionDto.quantity;
+    const grossAmount = unitPrice * quantity;
 
-    // Validate gross amount
     if (grossAmount < 1) {
       throw new BadRequestException('Total amount must be greater than 0');
     }
@@ -89,7 +106,7 @@ export class TransactionService {
         {
           id: product.id.toString(),
           price: unitPrice,
-          quantity: createTransactionDto.quantity,
+          quantity: quantity,
           name: product.nama.trim(),
         },
       ],
@@ -119,7 +136,6 @@ export class TransactionService {
 
     try {
       console.log('=== Creating Midtrans Transaction ===');
-      console.log('Product:', JSON.stringify(product, null, 2));
       console.log('Parameter:', JSON.stringify(parameter, null, 2));
       
       const snapTransaction = await this.snap.createTransaction(parameter);
@@ -128,15 +144,16 @@ export class TransactionService {
 
       // Save transaction to database
       const transaction = this.transactionRepository.create({
-        orderId,
+        orderId: orderId,
         productId: product.id,
         userId: user.id,
-        quantity: createTransactionDto.quantity,
-        grossAmount,
+        machineId: machineId, // Langsung assign, tidak perlu || null
+        quantity: quantity,
+        grossAmount: grossAmount,
         status: TransactionStatus.PENDING,
         snapToken: snapTransaction.token,
         snapUrl: snapTransaction.redirect_url,
-        platform: createTransactionDto.platform || 'web',
+        platform: platform,
         midtransResponse: JSON.stringify(snapTransaction),
       });
 
@@ -154,12 +171,16 @@ export class TransactionService {
           harga: product.harga,
           gambar: product.gambar,
         },
+        machine: {
+          id: machine.id,
+          name: machine.name,
+          location: machine.location,
+        },
         message: 'Transaction created successfully',
       };
     } catch (error) {
       console.error('=== Midtrans Error ===');
       console.error('Error:', error);
-      console.error('Parameter sent:', JSON.stringify(parameter, null, 2));
       
       if (error.ApiResponse) {
         throw new BadRequestException({
@@ -173,9 +194,6 @@ export class TransactionService {
     }
   }
 
-  /**
-   * Update product stock when payment is successful
-   */
   private async updateProductStock(transaction: Transaction): Promise<void> {
     try {
       const product = await this.productRepository.findOne({
@@ -187,7 +205,6 @@ export class TransactionService {
         return;
       }
 
-      // Validate stock availability
       if (product.stok < transaction.quantity) {
         console.error(
           `❌ Insufficient stock for product ${product.id}. Available: ${product.stok}, Required: ${transaction.quantity}`
@@ -195,9 +212,7 @@ export class TransactionService {
         return;
       }
 
-      // Decrease stock
       product.stok -= transaction.quantity;
-      
       await this.productRepository.save(product);
 
       console.log(
@@ -205,14 +220,12 @@ export class TransactionService {
       );
     } catch (error) {
       console.error('❌ Error updating product stock:', error);
-      // Don't throw error to prevent transaction from failing
     }
   }
 
   async handleNotification(notification: MidtransNotificationDto) {
     const { order_id, transaction_status, fraud_status } = notification;
 
-    // Verify signature
     const isValid = this.verifySignature(notification);
     if (!isValid) {
       throw new BadRequestException('Invalid signature');
@@ -226,7 +239,6 @@ export class TransactionService {
       throw new NotFoundException('Transaction not found');
     }
 
-    // Store previous status to check if status changed to success
     const previousStatus = transaction.status;
     let status: TransactionStatus;
 
@@ -257,7 +269,6 @@ export class TransactionService {
 
     await this.transactionRepository.save(transaction);
 
-    // Update stock if payment just became successful
     if (
       status === TransactionStatus.SUCCESS &&
       previousStatus !== TransactionStatus.SUCCESS
@@ -279,14 +290,13 @@ export class TransactionService {
 
       const transaction = await this.transactionRepository.findOne({
         where: { orderId },
-        relations: ['product', 'user'],
+        relations: ['product', 'user', 'machine'],
       });
 
       if (!transaction) {
         throw new NotFoundException('Transaction not found');
       }
 
-      // Store previous status to check if status changed
       const previousStatus = transaction.status;
       let status: TransactionStatus;
       
@@ -311,7 +321,6 @@ export class TransactionService {
         transaction.paymentType = statusResponse.payment_type;
         await this.transactionRepository.save(transaction);
 
-        // Update stock if payment just became successful
         if (
           status === TransactionStatus.SUCCESS &&
           previousStatus !== TransactionStatus.SUCCESS
@@ -329,6 +338,7 @@ export class TransactionService {
         grossAmount: transaction.grossAmount,
         paidAt: transaction.paidAt,
         product: transaction.product,
+        machine: transaction.machine,
         customer: transaction.user ? {
           name: transaction.user.name,
           email: transaction.user.email,
@@ -344,7 +354,7 @@ export class TransactionService {
 
   async getAllTransactions() {
     return await this.transactionRepository.find({
-      relations: ['product', 'user'],
+      relations: ['product', 'user', 'machine'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -352,7 +362,7 @@ export class TransactionService {
   async getTransactionByOrderId(orderId: string) {
     const transaction = await this.transactionRepository.findOne({
       where: { orderId },
-      relations: ['product', 'user'],
+      relations: ['product', 'user', 'machine'],
     });
 
     if (!transaction) {
@@ -365,7 +375,7 @@ export class TransactionService {
   async getUserTransactionHistory(userId: number) {
     const transactions = await this.transactionRepository.find({
       where: { userId },
-      relations: ['product'],
+      relations: ['product', 'machine'],
       order: { createdAt: 'DESC' },
     });
 
@@ -378,6 +388,11 @@ export class TransactionService {
         harga: transaction.product.harga,
         gambar: transaction.product.gambar,
       },
+      machine: transaction.machine ? {
+        id: transaction.machine.id,
+        name: transaction.machine.name,
+        location: transaction.machine.location,
+      } : null,
       quantity: transaction.quantity,
       grossAmount: transaction.grossAmount,
       status: transaction.status,

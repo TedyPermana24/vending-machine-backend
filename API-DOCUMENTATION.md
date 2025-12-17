@@ -9,6 +9,7 @@ Base URL: `http://localhost:3000`
 - [Transactions API](#transactions-api)
 - [Expert System API](#expert-system-api)
 - [Products API](#products-api)
+- [Machines API](#machines-api)
 - [Error Handling](#error-handling)
 
 ---
@@ -161,19 +162,21 @@ Authorization: Bearer <token>
 {
   "productId": 1,
   "quantity": 2,
+  "machineId": 1,
   "platform": "web"
 }
 ```
 
 **Request Fields:**
 
-| Field     | Type   | Required | Description                    |
-| --------- | ------ | -------- | ------------------------------ |
-| productId | number | Yes      | ID produk yang dibeli          |
-| quantity  | number | Yes      | Jumlah produk (min: 1)         |
-| platform  | string | No       | Platform ('web' atau 'mobile') |
+| Field     | Type   | Required | Description                                 |
+| --------- | ------ | -------- | ------------------------------------------- |
+| productId | number | Yes      | ID produk yang dibeli                       |
+| quantity  | number | Yes      | Jumlah produk (min: 1)                      |
+| machineId | number | Yes      | ID vending machine (harus berstatus ONLINE) |
+| platform  | string | No       | Platform ('web' atau 'mobile')              |
 
-**Note:** Informasi customer (name, email, phone) diambil dari data user yang sedang login.
+**Note:** Informasi customer (name, email, phone) diambil dari data user yang sedang login. Machine harus dalam status ONLINE untuk dapat memproses transaksi.
 
 **Success Response (200 OK):**
 
@@ -220,6 +223,26 @@ Authorization: Bearer <token>
 {
   "statusCode": 404,
   "message": "Product not found",
+  "error": "Not Found"
+}
+```
+
+**Error Response (400 Bad Request - Machine Offline):**
+
+```json
+{
+  "statusCode": 400,
+  "message": "Machine is not available (status: OFFLINE)",
+  "error": "Bad Request"
+}
+```
+
+**Error Response (404 Not Found - Machine Not Found):**
+
+```json
+{
+  "statusCode": 404,
+  "message": "Machine not found",
   "error": "Not Found"
 }
 ```
@@ -985,6 +1008,327 @@ Menghapus produk (Admin only).
 
 ---
 
+## Machines API
+
+Endpoint untuk mengelola data vending machine dan monitoring.
+
+### Base Path: `/machines`
+
+**Note:** Semua endpoint memerlukan authentication (JWT Token).
+
+---
+
+### 1. Get All Machines
+
+Mendapatkan semua vending machine yang tersedia.
+
+**Endpoint:** `GET /machines`
+
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <token>
+```
+
+**Success Response (200 OK):**
+
+```json
+[
+  {
+    "id": 1,
+    "code": "VM-001",
+    "name": "Vending Machine 1",
+    "location": "Gedung A Lantai 1",
+    "mqttTopic": "vending/vm001/sensor",
+    "status": "ONLINE",
+    "currentTemperature": 24.5,
+    "currentHumidity": 65.2,
+    "lastOnline": "2024-12-17T12:30:00.000Z",
+    "createdAt": "2024-12-01T10:00:00.000Z",
+    "updatedAt": "2024-12-17T12:30:00.000Z"
+  },
+  {
+    "id": 2,
+    "code": "VM-002",
+    "name": "Vending Machine 2",
+    "location": "Gedung B Lantai 2",
+    "mqttTopic": "vending/vm002/sensor",
+    "status": "ONLINE",
+    "currentTemperature": 23.8,
+    "currentHumidity": 63.5,
+    "lastOnline": "2024-12-17T12:29:00.000Z",
+    "createdAt": "2024-12-01T10:00:00.000Z",
+    "updatedAt": "2024-12-17T12:29:00.000Z"
+  },
+  {
+    "id": 3,
+    "code": "VM-003",
+    "name": "Vending Machine 3",
+    "location": "Gedung C Lantai 3",
+    "mqttTopic": "vending/vm003/sensor",
+    "status": "MAINTENANCE",
+    "currentTemperature": 25.2,
+    "currentHumidity": 67.1,
+    "lastOnline": "2024-12-17T10:15:00.000Z",
+    "createdAt": "2024-12-01T10:00:00.000Z",
+    "updatedAt": "2024-12-17T10:15:00.000Z"
+  }
+]
+```
+
+**Machine Status Values:**
+
+- `ONLINE` - Machine aktif dan dapat memproses transaksi
+- `OFFLINE` - Machine tidak terhubung
+- `MAINTENANCE` - Machine dalam perbaikan (tidak dapat memproses transaksi)
+
+---
+
+### 2. Get Online Machines Only
+
+Mendapatkan daftar vending machine yang berstatus ONLINE saja.
+
+**Endpoint:** `GET /machines/online`
+
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <token>
+```
+
+**Success Response (200 OK):**
+
+```json
+[
+  {
+    "id": 1,
+    "code": "VM-001",
+    "name": "Vending Machine 1",
+    "location": "Gedung A Lantai 1",
+    "status": "ONLINE",
+    "currentTemperature": 24.5,
+    "currentHumidity": 65.2
+  },
+  {
+    "id": 2,
+    "code": "VM-002",
+    "name": "Vending Machine 2",
+    "location": "Gedung B Lantai 2",
+    "status": "ONLINE",
+    "currentTemperature": 23.8,
+    "currentHumidity": 63.5
+  }
+]
+```
+
+**Use Case:** Frontend dapat menggunakan endpoint ini untuk menampilkan pilihan mesin yang tersedia saat user membuat transaksi.
+
+---
+
+### 3. Get Machine by ID
+
+Mendapatkan detail vending machine berdasarkan ID.
+
+**Endpoint:** `GET /machines/:id`
+
+**Authentication:** Required (Bearer Token)
+
+**Headers:**
+
+```
+Authorization: Bearer <token>
+```
+
+**URL Parameters:**
+
+| Parameter | Type   | Description |
+| --------- | ------ | ----------- |
+| id        | number | ID machine  |
+
+**Example:** `GET /machines/1`
+
+**Success Response (200 OK):**
+
+```json
+{
+  "id": 1,
+  "code": "VM-001",
+  "name": "Vending Machine 1",
+  "location": "Gedung A Lantai 1",
+  "mqttTopic": "vending/vm001/sensor",
+  "status": "ONLINE",
+  "currentTemperature": 24.5,
+  "currentHumidity": 65.2,
+  "lastOnline": "2024-12-17T12:30:00.000Z",
+  "createdAt": "2024-12-01T10:00:00.000Z",
+  "updatedAt": "2024-12-17T12:30:00.000Z"
+}
+```
+
+**Error Response (404 Not Found):**
+
+```json
+{
+  "statusCode": 404,
+  "message": "Machine not found",
+  "error": "Not Found"
+}
+```
+
+---
+
+### 4. Get Dashboard Stats (Admin Only)
+
+Mendapatkan statistik dan ringkasan status semua vending machine.
+
+**Endpoint:** `GET /machines/dashboard`
+
+**Authentication:** Required (Bearer Token + Admin Role)
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_token>
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "totalMachines": 5,
+  "onlineMachines": 4,
+  "offlineMachines": 0,
+  "maintenanceMachines": 1,
+  "averageTemperature": 24.2,
+  "averageHumidity": 64.3,
+  "machines": [
+    {
+      "id": 1,
+      "code": "VM-001",
+      "name": "Vending Machine 1",
+      "location": "Gedung A Lantai 1",
+      "status": "ONLINE",
+      "currentTemperature": 24.5,
+      "currentHumidity": 65.2,
+      "lastOnline": "2024-12-17T12:30:00.000Z"
+    },
+    {
+      "id": 2,
+      "code": "VM-002",
+      "name": "Vending Machine 2",
+      "location": "Gedung B Lantai 2",
+      "status": "ONLINE",
+      "currentTemperature": 23.8,
+      "currentHumidity": 63.5,
+      "lastOnline": "2024-12-17T12:29:00.000Z"
+    }
+  ]
+}
+```
+
+**Error Response (403 Forbidden):**
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden resource",
+  "error": "Forbidden"
+}
+```
+
+**Use Case:** Dashboard admin untuk monitoring status dan kondisi semua vending machine secara real-time.
+
+---
+
+### 5. Get Temperature History (Admin Only)
+
+Mendapatkan riwayat data suhu dan kelembaban dari vending machine tertentu.
+
+**Endpoint:** `GET /machines/:id/temperature`
+
+**Authentication:** Required (Bearer Token + Admin Role)
+
+**Headers:**
+
+```
+Authorization: Bearer <admin_token>
+```
+
+**URL Parameters:**
+
+| Parameter | Type   | Description |
+| --------- | ------ | ----------- |
+| id        | number | ID machine  |
+
+**Query Parameters (Optional):**
+
+| Parameter | Type   | Default | Description                    |
+| --------- | ------ | ------- | ------------------------------ |
+| limit     | number | 100     | Jumlah data yang ingin diambil |
+
+**Example:** `GET /machines/1/temperature?limit=10`
+
+**Success Response (200 OK):**
+
+```json
+[
+  {
+    "id": 45,
+    "machineId": 1,
+    "temperature": 24.5,
+    "humidity": 65.2,
+    "createdAt": "2024-12-17T12:30:00.000Z"
+  },
+  {
+    "id": 44,
+    "machineId": 1,
+    "temperature": 24.3,
+    "humidity": 64.8,
+    "createdAt": "2024-12-17T12:25:00.000Z"
+  },
+  {
+    "id": 43,
+    "machineId": 1,
+    "temperature": 24.7,
+    "humidity": 65.5,
+    "createdAt": "2024-12-17T12:20:00.000Z"
+  }
+]
+```
+
+**Error Response (403 Forbidden):**
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden resource",
+  "error": "Forbidden"
+}
+```
+
+**Error Response (404 Not Found):**
+
+```json
+{
+  "statusCode": 404,
+  "message": "Machine not found",
+  "error": "Not Found"
+}
+```
+
+**Use Case:**
+
+- Monitoring kondisi lingkungan vending machine
+- Analisis trend suhu dan kelembaban
+- Deteksi anomali kondisi mesin
+- Grafik historical data untuk dashboard admin
+
+---
+
 ## Error Handling
 
 ### Standard Error Response Format
@@ -1108,13 +1452,19 @@ Save the token from the response.
 GET {{baseUrl}}/products
 ```
 
-##### 4. Start Diagnosis
+##### 4. Browse Machines (check which machines are online)
+
+```http
+GET {{baseUrl}}/machines/online
+```
+
+##### 5. Start Diagnosis
 
 ```http
 GET {{baseUrl}}/expert-system/start
 ```
 
-##### 5. Answer Questions (repeat until isComplete: true)
+##### 6. Answer Questions (repeat until isComplete: true)
 
 ```http
 POST {{baseUrl}}/expert-system/diagnose
@@ -1125,7 +1475,7 @@ Body: {
 }
 ```
 
-##### 6. Create Transaction (with authentication)
+##### 7. Create Transaction (with authentication)
 
 ```http
 POST {{baseUrl}}/payments/create
@@ -1135,14 +1485,12 @@ Headers: {
 Body: {
   "productId": 1,
   "quantity": 2,
-  "customerName": "John Doe",
-  "customerEmail": "john@example.com",
-  "customerPhone": "081234567890",
+  "machineId": 1,
   "platform": "web"
 }
 ```
 
-##### 7. Check Payment Status
+##### 8. Check Payment Status
 
 ```http
 GET {{baseUrl}}/payments/status/ORDER-1762344412984-lb5qdwbj5
@@ -1150,50 +1498,9 @@ GET {{baseUrl}}/payments/status/ORDER-1762344412984-lb5qdwbj5
 
 ---
 
-#### Flow B: Guest Checkout (Without Authentication)
+#### Flow B: Without Authentication (Not Supported)
 
-##### 1. Browse Products
-
-```http
-GET {{baseUrl}}/products
-```
-
-##### 2. Start Diagnosis
-
-```http
-GET {{baseUrl}}/expert-system/start
-```
-
-##### 3. Answer Questions (repeat until isComplete: true)
-
-```http
-POST {{baseUrl}}/expert-system/diagnose
-Body: {
-  "questionId": "Q1",
-  "selectedOptionId": "Q1_yes",
-  "sessionId": "session_1762344412984_abc123def"
-}
-```
-
-##### 4. Create Transaction (as guest - no token)
-
-```http
-POST {{baseUrl}}/payments/create
-Body: {
-  "productId": 1,
-  "quantity": 2,
-  "customerName": "John Doe",
-  "customerEmail": "john@example.com",
-  "customerPhone": "081234567890",
-  "platform": "web"
-}
-```
-
-##### 5. Check Payment Status
-
-```http
-GET {{baseUrl}}/payments/status/ORDER-1762344412984-lb5qdwbj5
-```
+**Note:** All transactions now require user authentication. Guest checkout has been removed. Users must register and login before making a purchase.
 
 ---
 
@@ -1204,16 +1511,17 @@ GET {{baseUrl}}/payments/status/ORDER-1762344412984-lb5qdwbj5
 **React/Next.js Example:**
 
 ```typescript
-// Create transaction
-const response = await fetch('http://localhost:3000/transactions/create', {
+// Create transaction (with authentication)
+const response = await fetch('http://localhost:3001/payments/create', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
   body: JSON.stringify({
     productId: 1,
     quantity: 2,
-    customerName: 'John Doe',
-    customerEmail: 'john@example.com',
-    customerPhone: '081234567890',
+    machineId: 1,
     platform: 'web',
   }),
 });

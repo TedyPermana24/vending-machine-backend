@@ -10,14 +10,6 @@ export enum TransactionStatus {
   CANCELLED = 'cancelled',
 }
 
-export enum PaymentType {
-  QRIS = 'qris',
-  GOPAY = 'gopay',
-  SHOPEEPAY = 'shopeepay',
-  BANK_TRANSFER = 'bank_transfer',
-  CREDIT_CARD = 'credit_card',
-}
-
 @Entity('transactions')
 export class Transaction {
   @PrimaryGeneratedColumn()
@@ -27,13 +19,6 @@ export class Transaction {
   orderId: string;
 
   @Column()
-  productId: number;
-
-  @ManyToOne(() => Product)
-  @JoinColumn({ name: 'productId' })
-  product: Product;
-
-  @Column({ nullable: true })
   userId: number;
 
   @ManyToOne(() => User, (user) => user.transactions)
@@ -41,10 +26,24 @@ export class Transaction {
   user: User;
 
   @Column()
+  productId: number;
+
+  @ManyToOne(() => Product)
+  @JoinColumn({ name: 'productId' })
+  product: Product;
+
+  @Column()
+  machineId: number;
+
+  @ManyToOne('Machine', 'transactions')
+  @JoinColumn({ name: 'machineId' })
+  machine: any;
+
+  @Column({ default: 1 })
   quantity: number;
 
-  @Column({ type: 'int' }) // Ubah dari decimal ke int (dalam Rupiah)
-  grossAmount: number;
+  @Column({ nullable: true })
+  transactionId?: string;
 
   @Column({
     type: 'enum',
@@ -54,29 +53,32 @@ export class Transaction {
   status: TransactionStatus;
 
   @Column({ nullable: true })
-  paymentType: string;
+  transactionStatus?: string;
 
   @Column({ nullable: true })
-  snapToken: string;
+  paymentType?: string;
 
-  @Column({ nullable: true })
-  snapUrl: string;
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  grossAmount: number;
 
-  @Column({ nullable: true })
-  transactionId: string;
-
-  @Column({ nullable: true })
-  platform: string; // 'web' or 'mobile'
+  @Column({ type: 'timestamp', nullable: true })
+  paidAt?: Date;
 
   @Column({ type: 'text', nullable: true })
-  midtransResponse: string;
+  snapToken?: string;
+
+  @Column({ type: 'text', nullable: true })
+  snapUrl?: string;
+
+  @Column({ default: 'web' })
+  platform: string;
+
+  @Column({ type: 'json', nullable: true })
+  midtransResponse?: any;
 
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @Column({ type: 'timestamp', nullable: true })
-  paidAt: Date;
 }
