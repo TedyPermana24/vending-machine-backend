@@ -11,7 +11,9 @@ async function bootstrap() {
     credentials: true,
   });
   
-  await app.listen(process.env.PORT ?? 3000);
-  console.log(`Application is running on: http://localhost:${process.env.PORT ?? 3000}`);
+  const port = Number(process.env.PORT ?? 3000);
+  // Bind to all network interfaces so physical devices on the LAN can reach it.
+  await app.listen(port, '0.0.0.0');
+  console.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();

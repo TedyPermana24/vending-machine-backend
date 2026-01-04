@@ -279,6 +279,8 @@ export class ExpertSystemService {
       collectedSymptoms: [],
       currentQuestionIndex: -1, // -1 menandakan belum pilih gender
     });
+    console.log('✅ Session created:', sessionId);
+    console.log('📊 Total active sessions:', this.sessions.size);
 
     return {
       isComplete: false,
@@ -299,14 +301,21 @@ export class ExpertSystemService {
   ): Promise<DiagnoseResponseDto> {
     const { questionId, selectedOptionId, sessionId } = diagnoseRequest;
 
+    console.log('🔍 Diagnose called with sessionId:', sessionId);
+    console.log('📊 Active sessions:', Array.from(this.sessions.keys()));
+    console.log('📊 Total sessions:', this.sessions.size);
+
     if (!sessionId) {
       throw new NotFoundException('Session ID is required');
     }
 
     const session = this.sessions.get(sessionId);
     if (!session) {
+      console.log('❌ Session NOT FOUND:', sessionId);
+      console.log('❌ Available sessions:', Array.from(this.sessions.keys()));
       throw new NotFoundException('Session not found. Please start over.');
     }
+    console.log('✅ Session found:', sessionId, 'Gender:', session.gender, 'Index:', session.currentQuestionIndex);
 
     // Handle gender selection
     if (questionId === 'Q_GENDER') {

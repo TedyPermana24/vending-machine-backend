@@ -23,6 +23,7 @@ export class ExpertSystemController {
   async diagnose(
     @Body() diagnoseRequest: DiagnoseRequestDto,
   ): Promise<DiagnoseResponseDto> {
+    console.log('🔍 Diagnose endpoint called with:', JSON.stringify(diagnoseRequest));
     return await this.expertSystemService.diagnose(diagnoseRequest);
   }
 

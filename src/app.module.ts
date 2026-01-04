@@ -7,6 +7,9 @@ import { ProductsModule } from './products/products.module';
 import { MachinesModule } from './machines/machines.module';
 import { TransactionsModule } from './transactions/transaction.module';
 import { MqttModule } from './mqtt/mqtt.module';
+import { ExpertSystemModule } from './expert-system/expert-system.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -34,6 +37,9 @@ import { MqttModule } from './mqtt/mqtt.module';
     MachinesModule,
     MqttModule,
     TransactionsModule,
+    ExpertSystemModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
