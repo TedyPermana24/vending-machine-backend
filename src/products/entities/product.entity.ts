@@ -4,7 +4,9 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { MachineProduct } from './machine-product.entity';
 
 @Entity('products')
 export class Product {
@@ -12,7 +14,7 @@ export class Product {
   id: number;
 
   @Column()
-  nama: string;
+  name: string;
 
   @Column({ type: 'text' })
   deskripsi: string;
@@ -23,11 +25,11 @@ export class Product {
   @Column({ type: 'int' }) // Ubah dari decimal ke int (dalam Rupiah)
   harga: number;
 
-  @Column()
-  stok: number;
-
   @Column({ nullable: true })
   gambar: string;
+
+  @OneToMany(() => MachineProduct, (machineProduct) => machineProduct.product)
+  machineProducts: MachineProduct[];
 
   @CreateDateColumn()
   createdAt: Date;

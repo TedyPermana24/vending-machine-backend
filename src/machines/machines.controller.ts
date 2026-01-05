@@ -1,7 +1,9 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { MachinesService } from './machines.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { CreateMachineDto } from './dto/create-machine.dto';
+import { UpdateMachineDto } from './dto/update-machine.dto';
 
 @Controller('machines')
 @UseGuards(JwtAuthGuard)
@@ -11,6 +13,13 @@ export class MachinesController {
   @Get()
   async findAll() {
     return this.machinesService.findAll();
+  }
+
+  @Post()
+  @UseGuards(AdminGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async create(@Body() createMachineDto: CreateMachineDto) {
+    return this.machinesService.createMachine(createMachineDto);
   }
 
   @Get('online')
@@ -27,6 +36,19 @@ export class MachinesController {
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.machinesService.findOne(+id);
+  }
+
+  @Patch(':id')
+  @UseGuards(AdminGuard)
+  async update(@Param('id') id: string, @Body() updateMachineDto: UpdateMachineDto) {
+    return this.machinesService.updateMachine(+id, updateMachineDto);
+  }
+
+  @Delete(':id')
+  @UseGuards(AdminGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id') id: string) {
+    return this.machinesService.removeMachine(+id);
   }
 
   @Get(':id/temperature')

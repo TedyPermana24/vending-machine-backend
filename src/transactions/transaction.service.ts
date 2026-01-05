@@ -9,6 +9,7 @@ import { User } from '../users/entities/user.entity';
 import { Machine } from '../machines/entities/machine.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { MidtransNotificationDto } from './dto/midtrans-notification.dto';
+import { ProductsService } from '../products/products.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class TransactionService {
     @InjectRepository(Machine)
     private machineRepository: Repository<Machine>,
     private configService: ConfigService,
+    private productsService: ProductsService,
   ) {
     this.snap = new midtransClient.Snap({
       isProduction: this.configService.get<string>('MIDTRANS_IS_PRODUCTION') === 'true',
@@ -53,17 +55,12 @@ export class TransactionService {
     }
 
     // Validate product
-    if (!product.nama || product.nama.trim() === '') {
+    if (!product.name || product.name.trim() === '') {
       throw new BadRequestException('Product name is empty');
     }
 
     if (!product.harga || product.harga <= 0) {
       throw new BadRequestException('Invalid product price');
-    }
-
-    // Check stock
-    if (product.stok < quantity) {
-      throw new BadRequestException(`Insufficient stock. Available: ${product.stok}, Requested: ${quantity}`);
     }
 
     // Validate machine (WAJIB)
@@ -77,6 +74,12 @@ export class TransactionService {
 
     if (machine.status !== 'online') {
       throw new BadRequestException(`Machine ${machine.name} is not online`);
+    }
+
+    // Check stock per machine
+    const availableStock = await this.productsService.getMachineStock(productId, machineId);
+    if (availableStock < quantity) {
+      throw new BadRequestException(`Insufficient stock. Available: ${availableStock}, Requested: ${quantity}`);
     }
 
     // Get user
@@ -107,7 +110,7 @@ export class TransactionService {
           id: product.id.toString(),
           price: unitPrice,
           quantity: quantity,
-          name: product.nama.trim(),
+          name: product.name.trim(),
         },
       ],
       customer_details: {
@@ -167,7 +170,7 @@ export class TransactionService {
         grossAmount: transaction.grossAmount,
         product: {
           id: product.id,
-          nama: product.nama,
+          nama: product.name,
           harga: product.harga,
           gambar: product.gambar,
         },
@@ -205,18 +208,33 @@ export class TransactionService {
         return;
       }
 
-      if (product.stok < transaction.quantity) {
+      // Check stock per machine
+      const availableStock = await this.productsService.getMachineStock(
+        transaction.productId,
+        transaction.machineId
+      );
+
+      if (availableStock < transaction.quantity) {
         console.error(
-          `❌ Insufficient stock for product ${product.id}. Available: ${product.stok}, Required: ${transaction.quantity}`
+          `❌ Insufficient stock for product ${product.id}. Available: ${availableStock}, Required: ${transaction.quantity}`
         );
         return;
       }
 
-      product.stok -= transaction.quantity;
-      await this.productRepository.save(product);
+      // Update stock per machine (decrease)
+      await this.productsService.updateMachineStock(
+        transaction.productId,
+        transaction.machineId,
+        -transaction.quantity
+      );
+
+      const remainingStock = await this.productsService.getMachineStock(
+        transaction.productId,
+        transaction.machineId
+      );
 
       console.log(
-        `✅ Stock updated for product ${product.nama}. Sold: ${transaction.quantity}, Remaining: ${product.stok}`
+        `✅ Stock updated for product ${product.name}. Sold: ${transaction.quantity}, Remaining: ${remainingStock}`
       );
     } catch (error) {
       console.error('❌ Error updating product stock:', error);
@@ -384,7 +402,7 @@ export class TransactionService {
       orderId: transaction.orderId,
       product: {
         id: transaction.product.id,
-        nama: transaction.product.nama,
+        nama: transaction.product.name,
         harga: transaction.product.harga,
         gambar: transaction.product.gambar,
       },

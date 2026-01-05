@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
+import { MachineProduct } from '../../products/entities/machine-product.entity';
 
 export enum MachineStatus {
   ONLINE = 'online',
@@ -26,6 +27,12 @@ export class Machine {
 
   @Column()
   location: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  latitude?: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  longitude?: number;
 
   @Column({ unique: true })
   mqttTopic: string;
@@ -51,6 +58,9 @@ export class Machine {
 
   @OneToMany('TemperatureLog', 'machine')
   temperatureLogs: any[];
+
+  @OneToMany(() => MachineProduct, (machineProduct) => machineProduct.machine)
+  machineProducts: MachineProduct[];
 
   @CreateDateColumn()
   createdAt: Date;

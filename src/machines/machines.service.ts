@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Machine, MachineStatus } from './entities/machine.entity';
 import { TemperatureLog } from './entities/temperature-log.entity';
+import { CreateMachineDto } from './dto/create-machine.dto';
+import { UpdateMachineDto } from './dto/update-machine.dto';
 
 @Injectable()
 export class MachinesService {
@@ -34,6 +36,62 @@ export class MachinesService {
   async create(data: Partial<Machine>) {
     const machine = this.machineRepo.create(data);
     return this.machineRepo.save(machine);
+  }
+
+  async createMachine(createMachineDto: CreateMachineDto) {
+    // Check if code already exists
+    const existingByCode = await this.machineRepo.findOne({ 
+      where: { code: createMachineDto.code } 
+    });
+    if (existingByCode) {
+      throw new ConflictException(`Machine with code "${createMachineDto.code}" already exists`);
+    }
+
+    // Check if mqttTopic already exists
+    const existingByTopic = await this.machineRepo.findOne({ 
+      where: { mqttTopic: createMachineDto.mqttTopic } 
+    });
+    if (existingByTopic) {
+      throw new ConflictException(`Machine with MQTT topic "${createMachineDto.mqttTopic}" already exists`);
+    }
+
+    const machine = this.machineRepo.create({
+      ...createMachineDto,
+      status: createMachineDto.status || MachineStatus.OFFLINE,
+    });
+    return this.machineRepo.save(machine);
+  }
+
+  async updateMachine(id: number, updateMachineDto: UpdateMachineDto) {
+    const machine = await this.findOne(id);
+
+    // Check if code is being updated and already exists
+    if (updateMachineDto.code && updateMachineDto.code !== machine.code) {
+      const existingByCode = await this.machineRepo.findOne({ 
+        where: { code: updateMachineDto.code } 
+      });
+      if (existingByCode) {
+        throw new ConflictException(`Machine with code "${updateMachineDto.code}" already exists`);
+      }
+    }
+
+    // Check if mqttTopic is being updated and already exists
+    if (updateMachineDto.mqttTopic && updateMachineDto.mqttTopic !== machine.mqttTopic) {
+      const existingByTopic = await this.machineRepo.findOne({ 
+        where: { mqttTopic: updateMachineDto.mqttTopic } 
+      });
+      if (existingByTopic) {
+        throw new ConflictException(`Machine with MQTT topic "${updateMachineDto.mqttTopic}" already exists`);
+      }
+    }
+
+    Object.assign(machine, updateMachineDto);
+    return this.machineRepo.save(machine);
+  }
+
+  async removeMachine(id: number) {
+    const machine = await this.findOne(id);
+    await this.machineRepo.remove(machine);
   }
 
   async updateStatus(id: number, status: MachineStatus) {

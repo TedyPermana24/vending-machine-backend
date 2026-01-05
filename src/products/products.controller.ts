@@ -8,10 +8,12 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  Put,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { SetMachineStockDto } from './dto/set-machine-stock.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -42,5 +44,32 @@ export class ProductsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string) {
     return this.productsService.remove(+id);
+  }
+
+  // Machine-specific stock endpoints
+  @Get('machine/:machineId')
+  findByMachine(@Param('machineId') machineId: string) {
+    return this.productsService.findByMachine(+machineId);
+  }
+
+  @Put(':id/machine/:machineId/stock')
+  setMachineStock(
+    @Param('id') id: string,
+    @Param('machineId') machineId: string,
+    @Body() setMachineStockDto: SetMachineStockDto,
+  ) {
+    return this.productsService.setMachineStock(
+      +id,
+      +machineId,
+      setMachineStockDto.stok,
+    );
+  }
+
+  @Get(':id/machine/:machineId/stock')
+  getMachineStock(
+    @Param('id') id: string,
+    @Param('machineId') machineId: string,
+  ) {
+    return this.productsService.getMachineStock(+id, +machineId);
   }
 }

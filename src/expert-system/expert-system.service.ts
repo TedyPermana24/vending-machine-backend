@@ -414,7 +414,7 @@ export class ExpertSystemService {
       sessionId,
       recommendation: {
         productId: diagnosis.productId,
-        productName: product.nama,
+        productName: product.name,
         alasan: aiExplanation,
       },
     };
@@ -429,7 +429,7 @@ export class ExpertSystemService {
       const prompt = `
 Anda adalah asisten kesehatan herbal yang profesional dan to-the-point.
 
-PRODUK: ${product.nama}
+PRODUK: ${product.name}
 GEJALA: ${symptoms.join(', ')}
 DIAGNOSIS: ${diagnosis}
 
@@ -447,7 +447,7 @@ ATURAN KETAT:
 - Bahasa profesional tapi tetap ramah
 
 Contoh format yang benar:
-"${product.nama} cocok untuk mengatasi ${diagnosis.toLowerCase()} yang Anda alami.
+"${product.name} cocok untuk mengatasi ${diagnosis.toLowerCase()} yang Anda alami.
 
 Manfaat utama:
 • [manfaat 1]
@@ -473,7 +473,7 @@ Tips penggunaan:
     symptoms: string[],
     product: Product,
   ): string {
-    return `${product.nama} cocok untuk mengatasi keluhan yang Anda alami.
+    return `${product.name} cocok untuk mengatasi keluhan yang Anda alami.
 
 Manfaat:
 • ${product.manfaat.split(',')[0]?.trim() || product.manfaat}

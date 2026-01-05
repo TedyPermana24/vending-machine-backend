@@ -3,5 +3,4 @@ export class CreateProductDto {
   deskripsi: string;
   manfaat: string;
   harga: number;
-  stok: number;
 }
