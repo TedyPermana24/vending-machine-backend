@@ -6,7 +6,6 @@ import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
 
 @Controller('machines')
-@UseGuards(JwtAuthGuard)
 export class MachinesController {
   constructor(private readonly machinesService: MachinesService) {}
 
