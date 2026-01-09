@@ -10,6 +10,7 @@ import { Machine } from '../machines/entities/machine.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { MidtransNotificationDto } from './dto/midtrans-notification.dto';
 import { ProductsService } from '../products/products.service';
+import { MqttService } from '../mqtt/mqtt.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -28,6 +29,7 @@ export class TransactionService {
     private machineRepository: Repository<Machine>,
     private configService: ConfigService,
     private productsService: ProductsService,
+    private mqttService: MqttService,
   ) {
     this.snap = new midtransClient.Snap({
       isProduction: this.configService.get<string>('MIDTRANS_IS_PRODUCTION') === 'true',
@@ -43,7 +45,20 @@ export class TransactionService {
   }
 
   async createTransaction(createTransactionDto: CreateTransactionDto, userId: number) {
+    // Validate input
+    if (!createTransactionDto) {
+      throw new BadRequestException('Request body is required');
+    }
+
     const { productId, quantity = 1, machineId, platform = 'web' } = createTransactionDto;
+
+    // Validate required fields
+    if (!productId) {
+      throw new BadRequestException('productId is required');
+    }
+    if (!machineId) {
+      throw new BadRequestException('machineId is required');
+    }
 
     // Get product
     const product = await this.productRepository.findOne({
@@ -236,6 +251,24 @@ export class TransactionService {
       console.log(
         `✅ Stock updated for product ${product.name}. Sold: ${transaction.quantity}, Remaining: ${remainingStock}`
       );
+
+      // Trigger dispense command via MQTT
+      const machine = await this.machineRepository.findOne({
+        where: { id: transaction.machineId },
+      });
+
+      if (machine) {
+        try {
+          await this.mqttService.publishDispenseCommand(
+            machine.code,
+            transaction.productId,
+            transaction.quantity
+          );
+          console.log(`🎁 Dispense triggered for Product ${transaction.productId} on ${machine.name}`);
+        } catch (dispenseError) {
+          console.error(`❌ Failed to trigger dispense:`, dispenseError);
+        }
+      }
     } catch (error) {
       console.error('❌ Error updating product stock:', error);
     }

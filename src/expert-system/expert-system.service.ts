@@ -52,8 +52,8 @@ export class ExpertSystemService {
   private readonly PRODUCT_NAMES: Record<number, string> = {
     1: 'Jamu Kunyit Asam',
     2: 'Jamu Beras Kencur',
-    3: 'Sari Temulawak Deli',
-    4: 'KukuBima TL Herbal Sidomuncul',
+    3: 'Jamu Sari Temulawak Deli',
+    4: 'Jamu TL Herbal Sidomuncul',
   };
 
   // Knowledge Base - Rules untuk Forward Chaining

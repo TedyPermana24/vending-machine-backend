@@ -229,30 +229,40 @@ export class MqttService implements OnModuleInit {
     this.logger.debug(`💓 Heartbeat from ${machine.name}`);
   }
 
-  async publishDispenseCommand(machineCode: string, productSlot: string, quantity: number) {
-    const topic = `vending-machine/${machineCode}/dispense`;
-    const payload = {
-      productSlot,
-      quantity,
-      timestamp: new Date().toISOString(),
-    };
-
-    return new Promise((resolve, reject) => {
-      this.client.publish(topic, JSON.stringify(payload), { qos: 1 }, (error) => {
-        if (error) {
-          this.logger.error(`Failed to publish dispense command to ${machineCode}:`, error);
-          reject(error);
-        } else {
-          this.logger.log(`📤 Dispense command sent to ${machineCode}: ${JSON.stringify(payload)}`);
-          resolve(true);
+  async publishDispenseCommand(machineCode: string, productId: number, quantity: number) {
+    // Topic pattern: vending-machine/{machineCode}/dispense/{productId}
+    const topic = `/${machineCode}/dispense/${productId}`;
+    
+    try {
+      this.logger.log(`📤 Starting dispense for Product ${productId} on ${machineCode}`);
+      
+      // Send ON command
+      await this.publish(topic, 'ON');
+      this.logger.log(`✅ Sent ON to ${topic}`);
+      
+      // Wait 5 seconds then send OFF
+      setTimeout(async () => {
+        try {
+          await this.publish(topic, 'OFF');
+          this.logger.log(`✅ Sent OFF to ${topic} after 5 seconds`);
+        } catch (error) {
+          this.logger.error(`❌ Failed to send OFF to ${topic}:`, error);
         }
-      });
-    });
+      }, 5000);
+      
+      return true;
+    } catch (error) {
+      this.logger.error(`❌ Failed to publish dispense command to ${machineCode}:`, error);
+      throw error;
+    }
   }
 
   publish(topic: string, message: any) {
     return new Promise((resolve, reject) => {
-      this.client.publish(topic, JSON.stringify(message), { qos: 1 }, (error) => {
+      // If message is already a string, use it directly, otherwise stringify
+      const payload = typeof message === 'string' ? message : JSON.stringify(message);
+      
+      this.client.publish(topic, payload, { qos: 1 }, (error) => {
         if (error) {
           this.logger.error(`Failed to publish to ${topic}:`, error);
           reject(error);

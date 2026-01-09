@@ -10,7 +10,7 @@ class PublishMessageDto {
 
 class DispenseCommandDto {
   machineCode: string;
-  productSlot: string;
+  productId: number;
   quantity: number;
 }
 
@@ -41,14 +41,14 @@ export class MqttController {
   async dispense(@Body() dto: DispenseCommandDto) {
     await this.mqttService.publishDispenseCommand(
       dto.machineCode,
-      dto.productSlot,
+      dto.productId,
       dto.quantity,
     );
     return {
       success: true,
       message: 'Dispense command sent successfully',
       machineCode: dto.machineCode,
-      productSlot: dto.productSlot,
+      productId: dto.productId,
       quantity: dto.quantity,
     };
   }
