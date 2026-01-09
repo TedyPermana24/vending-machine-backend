@@ -231,7 +231,7 @@ export class MqttService implements OnModuleInit {
 
   async publishDispenseCommand(machineCode: string, productId: number, quantity: number) {
     // Topic pattern: vending-machine/{machineCode}/dispense/{productId}
-    const topic = `/${machineCode}/dispense/${productId}`;
+    const topic = `${machineCode}/dispense/${productId}`;
     
     try {
       this.logger.log(`📤 Starting dispense for Product ${productId} on ${machineCode}`);
