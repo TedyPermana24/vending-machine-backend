@@ -41,8 +41,7 @@ export class MqttController {
   async dispense(@Body() dto: DispenseCommandDto) {
     await this.mqttService.publishDispenseCommand(
       dto.machineCode,
-      dto.productId,
-      dto.quantity,
+      dto.productId
     );
     return {
       success: true,

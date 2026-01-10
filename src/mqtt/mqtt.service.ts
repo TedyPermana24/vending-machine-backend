@@ -155,7 +155,7 @@ export class MqttService implements OnModuleInit {
     });
 
     // ALWAYS send to WebSocket (Real-time to frontend)
-    this.machineGateway.sendTemperatureUpdate(machine.id, {
+    this.machineGateway.sendTemperatureUpdate(machineCode, {
       machineCode,
       machineName: machine.name,
       machineLocation: machine.location,
@@ -205,7 +205,7 @@ export class MqttService implements OnModuleInit {
     });
 
     // Send status update to frontend via WebSocket
-    this.machineGateway.sendStatusUpdate(machine.id, status);
+    this.machineGateway.sendStatusUpdate(machineCode, status);
 
     this.logger.log(`🔄 Status updated for ${machine.name}: ${status}`);
   }
@@ -224,17 +224,24 @@ export class MqttService implements OnModuleInit {
     });
 
     // Send heartbeat to frontend via WebSocket
-    this.machineGateway.sendHeartbeat(machine.id, machineCode);
+    this.machineGateway.sendHeartbeat(machineCode);
 
     this.logger.debug(`💓 Heartbeat from ${machine.name}`);
   }
 
-  async publishDispenseCommand(machineCode: string, productId: number, quantity: number) {
-    // Topic pattern: vending-machine/{machineCode}/dispense/{productId}
-    const topic = `${machineCode}/dispense/${productId}`;
+  async publishDispenseCommand(machineCode: string, productId: number) {
+    // Find machine by code to get mqttTopic
+    const machine = await this.machineRepo.findOne({ where: { code: machineCode } });
+    if (!machine) {
+      this.logger.error(`❌ Machine with code ${machineCode} not found`);
+      throw new Error(`Machine ${machineCode} not found`);
+    }
+
+    // Topic pattern: {mqttTopic}/dispense/{productId}
+    const topic = `${machine.mqttTopic}/dispense/${productId}`;
     
     try {
-      this.logger.log(`📤 Starting dispense for Product ${productId} on ${machineCode}`);
+      this.logger.log(`📤 Starting dispense for Product ${productId} on ${machine.name} (${machineCode})`);
       
       // Send ON command
       await this.publish(topic, 'ON');

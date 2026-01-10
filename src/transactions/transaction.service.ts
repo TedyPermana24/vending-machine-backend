@@ -261,8 +261,7 @@ export class TransactionService {
         try {
           await this.mqttService.publishDispenseCommand(
             machine.code,
-            transaction.productId,
-            transaction.quantity
+            transaction.productId
           );
           console.log(`🎁 Dispense triggered for Product ${transaction.productId} on ${machine.name}`);
         } catch (dispenseError) {
