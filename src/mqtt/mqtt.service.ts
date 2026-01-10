@@ -242,20 +242,17 @@ export class MqttService implements OnModuleInit {
     
     try {
       this.logger.log(`📤 Starting dispense for Product ${productId} on ${machine.name} (${machineCode})`);
+      this.logger.log(`   Topic: ${topic}`);
       
       // Send ON command
       await this.publish(topic, 'ON');
       this.logger.log(`✅ Sent ON to ${topic}`);
       
       // Wait 5 seconds then send OFF
-      setTimeout(async () => {
-        try {
-          await this.publish(topic, 'OFF');
-          this.logger.log(`✅ Sent OFF to ${topic} after 5 seconds`);
-        } catch (error) {
-          this.logger.error(`❌ Failed to send OFF to ${topic}:`, error);
-        }
-      }, 5000);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      await this.publish(topic, 'OFF');
+      this.logger.log(`✅ Sent OFF to ${topic} after 5 seconds`);
       
       return true;
     } catch (error) {

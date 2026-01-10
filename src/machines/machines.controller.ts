@@ -15,7 +15,7 @@ export class MachinesController {
   }
 
   @Post()
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createMachineDto: CreateMachineDto) {
     return this.machinesService.createMachine(createMachineDto);
@@ -27,7 +27,7 @@ export class MachinesController {
   }
 
   @Get('dashboard')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async getDashboard() {
     return this.machinesService.getDashboardStats();
   }
@@ -38,20 +38,20 @@ export class MachinesController {
   }
 
   @Patch(':id')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async update(@Param('id') id: string, @Body() updateMachineDto: UpdateMachineDto) {
     return this.machinesService.updateMachine(+id, updateMachineDto);
   }
 
   @Delete(':id')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string) {
     return this.machinesService.removeMachine(+id);
   }
 
   @Get(':id/temperature')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async getTemperatureHistory(@Param('id') id: string) {
     return this.machinesService.getTemperatureHistory(+id);
   }

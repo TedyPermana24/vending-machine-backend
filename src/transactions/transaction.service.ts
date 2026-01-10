@@ -214,6 +214,11 @@ export class TransactionService {
 
   private async updateProductStock(transaction: Transaction): Promise<void> {
     try {
+      console.log(`🔄 Starting updateProductStock for transaction ${transaction.orderId}`);
+      console.log(`   - Product ID: ${transaction.productId}`);
+      console.log(`   - Machine ID: ${transaction.machineId}`);
+      console.log(`   - Quantity: ${transaction.quantity}`);
+
       const product = await this.productRepository.findOne({
         where: { id: transaction.productId },
       });
@@ -223,15 +228,19 @@ export class TransactionService {
         return;
       }
 
+      console.log(`✅ Product found: ${product.name}`);
+
       // Check stock per machine
       const availableStock = await this.productsService.getMachineStock(
         transaction.productId,
         transaction.machineId
       );
 
+      console.log(`📦 Available stock: ${availableStock}`);
+
       if (availableStock < transaction.quantity) {
         console.error(
-          `❌ Insufficient stock for product ${product.id}. Available: ${availableStock}, Required: ${transaction.quantity}`
+          `❌ Insufficient stock for product ${product.name}. Available: ${availableStock}, Required: ${transaction.quantity}`
         );
         return;
       }
@@ -257,19 +266,45 @@ export class TransactionService {
         where: { id: transaction.machineId },
       });
 
-      if (machine) {
-        try {
+      if (!machine) {
+        console.error(`❌ Machine with ID ${transaction.machineId} not found`);
+        return;
+      }
+
+      console.log(`✅ Machine found: ${machine.name} (Code: ${machine.code})`);
+
+      try {
+        console.log(`🎁 Starting dispense loop for ${transaction.quantity} items...`);
+        
+        // Loop dispense sesuai quantity
+        for (let i = 1; i <= transaction.quantity; i++) {
+          console.log(`\n=== DISPENSE ${i}/${transaction.quantity} ===`);
+          console.log(`🎁 Dispensing Product ${transaction.productId} on ${machine.name}`);
+          
           await this.mqttService.publishDispenseCommand(
             machine.code,
             transaction.productId
           );
-          console.log(`🎁 Dispense triggered for Product ${transaction.productId} on ${machine.name}`);
-        } catch (dispenseError) {
-          console.error(`❌ Failed to trigger dispense:`, dispenseError);
+          
+          console.log(`✅ Dispense command sent (${i}/${transaction.quantity})`);
+          
+          // Delay 7 detik sebelum dispense berikutnya (kecuali dispense terakhir)
+          // 5 detik ON + 2 detik buffer
+          if (i < transaction.quantity) {
+            console.log(`⏳ Waiting 7 seconds before next dispense...`);
+            await new Promise(resolve => setTimeout(resolve, 7000));
+            console.log(`⏳ Wait complete, proceeding to next dispense...`);
+          }
         }
+        
+        console.log(`\n✅ All ${transaction.quantity} items dispensed successfully`);
+      } catch (dispenseError) {
+        console.error(`❌ Failed to trigger dispense:`, dispenseError);
+        console.error('Dispense error stack:', dispenseError.stack);
       }
     } catch (error) {
       console.error('❌ Error updating product stock:', error);
+      console.error('Error stack:', error.stack);
     }
   }
 
